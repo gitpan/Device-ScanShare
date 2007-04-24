@@ -1,0 +1,6 @@
+Makefile.PL
+lib/Device/ScanShare.pm
+t/0.t
+bin/scanshare
+MANIFEST
+META.yml                                 Module meta-data (added by MakeMaker)

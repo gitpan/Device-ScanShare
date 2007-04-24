@@ -1,0 +1,143 @@
+#!/usr/bin/perl -w
+use Device::ScanShare;
+use YAML;
+use Getopt::Std;
+our $VERSION = sprintf "%d.%02d", q$Revision: 1.3 $ =~ /(\d+)/g;
+
+my $conf = YAML::LoadFile('/etc/scanshare.conf');
+
+my $scanshare = new Device::ScanShare($conf);
+
+
+my $o={}; getopts('sva:d:l:',$o);
+
+usage() if $o->{h};
+
+print $VERSION and exit if $o->{v};
+
+
+
+
+
+sub usage {
+	print `man scanshare`;
+	exit;
+}
+
+
+
+if (defined $$o{s}){
+
+	print "\nUSERDIRS.TXT entries: \n-----------\n(label) -> (destination) -> (host)\n-----------\n";
+	for (@{$scanshare->get_users}){
+		print $_->{label}." -> ".$_->{path}." -> ".$_->{host}."\n";
+	}
+	print "\n-------------------\nTotal Entries: ".$scanshare->count."\n";
+	exit;
+}
+
+
+# BEGIN CHECKS
+
+(defined $$o{a} or defined $$o{d} ) or (usage() and exit);
+if ($$o{a} and $$o{d}){
+	print "ERROR: can't tell me to add AND delete at the same time, consult manual.\n";
+	exit;
+}
+
+if ($$o{a} and !$$o{l}){
+	print "ERROR: if you want to add, you must provide -l label as well, consult manual.\n";
+	exit;
+}
+
+
+# END CHECKS
+
+
+
+if ($$o{a}) {
+
+	$scanshare->user_add({path=>$$o{a}, label=>$$o{l}}) or print "\nalready there.\n" and exit;
+	
+	$scanshare->save;
+	print "Added. Changes Saved.\n";	
+}
+
+elsif ($$o{d}) {
+
+	$scanshare->user_delete($$o{d}) or print STDERR "path $$o{d} is not an entry";	
+	
+	$scanshare->save;
+	print "Removed $$o{d}. Changes Saved.\n";	
+}
+
+
+exit;
+
+
+
+__END__
+
+
+=pod
+
+=head1 NAME
+
+scanshare - manipulate ecopy USERDIRS.TXT file for scanner management
+
+=head1 DESCRIPTION
+
+This is a cli interface to L<Device::ScanShare>.
+
+=head1 OPTIONS
+
+  -a add/this/dir
+  -l "label for this dir"
+  -d delete/this/dir
+  -s view all USERDIRS.TXT entries
+  -v version
+  -h help
+
+=head1 USAGE EXAMPLES
+
+EXAMPLE 1:
+
+imagine we want to add sfarrow to the list of people that come up in the scanner,
+make sure userfiles/sfarrow/incoming  exists
+
+        # scanshare -a userfiles/sfarrow/incoming -l "Samantha Farrow"
+       
+EXAMPLE 2:
+
+to delete the above entry from USERDIRS.TXT:
+
+        # scanshare -d userfiles/sfarrow/incoming
+
+NOTES:
+To add a new path, it must reside relative to where USERDIRS.TXT resides. 
+if USERDIRS.TXT is in /var/this/USERDIRS.TXT, then the above entry must be in
+/var/this/userfiles/sfarrow/incoming
+To change this, edit /etc/scanshare.conf
+
+=head1 /etc/scanshare.conf
+
+	---
+	userdirs_abs_path: /srv/www/htdocs-devel/dms/doc/USERDIRS.TXT
+	default_host: Dyer05
+
+Default host is when you make an entry, the USERDIRS.TXT file needs it
+Formatted for L<YAML>
+
+=head1 SEE ALSO
+
+Device::ScanShare
+YAML
+
+=head1 AUTHOR
+
+Leo Charre leocharre at cpan dot org
+
+=cut
+
+
+
