@@ -1,7 +1,7 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         Device-ScanShare
-version:      1.002
+version:      1.004
 version_from: lib/Device/ScanShare.pm
 installdirs:  site
 requires:

@@ -3,13 +3,13 @@ use File::Slurp;
 use File::Path;
 use strict;
 use Carp;
-our $VERSION = sprintf "%d.%03d", q$Revision: 1.2 $ =~ /(\d+)/g;
+our $VERSION = sprintf "%d.%03d", q$Revision: 1.4 $ =~ /(\d+)/g;
 
 sub new {
 	my ($class, $self ) = (shift, shift);
 	$self ||= {};
 
-	$self->{userdirs_abs_path} || croak('you must specify userdirs_abs_path, absolute path to USERDIRS file');
+	$self->{userdirs_abs_path} or croak('missing "userdirs_abs_path" argument to constructor- you must specify userdirs_abs_path, absolute path to USERDIRS file');
 	
 	bless $self, $class;
 
@@ -106,7 +106,7 @@ sub save {
 	}
 	
 	open (SVF, "> ".$self->userdirs_abs_path.".tmp") or die("$!, cannot open file for writing: ".$self->userdirs_abs_path);
-	print SVF $savefile;
+	print SVF $savefile."\n";
 	close SVF;	
 	
 	rename($self->userdirs_abs_path.'.tmp', $self->userdirs_abs_path) or die("$!, cannot rename"); 
