@@ -1,36 +1,157 @@
 package Device::ScanShare;
 use File::Slurp;
+use vars qw($VERSION $DEBUG);
 use File::Path;
+use Cwd;
 use strict;
 use Carp;
-our $VERSION = sprintf "%d.%03d", q$Revision: 1.4 $ =~ /(\d+)/g;
+
+$VERSION = sprintf "%d.%03d", q$Revision: 1.12 $ =~ /(\d+)/g;
+$DEBUG = 0;
+
+=pod
+# the coolest errstr
+sub errstr { 
+   my($self,$arg) =@_;
+   if( defined $arg ){
+      push @{$self->{errstr}},$arg;
+      my $from = sprintf "[%s %s]", (caller(1))[1], (caller(1))[2];
+      #print STDERR "$arg\n" if $DEBUG;
+      #(printf STDERR "DEBUG %s %s\n", $from, $arg) if $DEBUG;
+   }
+   $self->{errstr} or return;
+
+   join("\n", @{$self->{errstr}});
+}
+=cut
+
+
+sub DEBUG : lvalue { $DEBUG }
+sub debug { $DEBUG and printf "@_\n"; 1 }
+
+sub debog { $DEBUG and printf STDERR "# %s(), @_\n", (caller(1))[3] ; 1 }
 
 sub new {
 	my ($class, $self ) = (shift, shift);
 	$self ||= {};
 
-	$self->{userdirs_abs_path} or croak('missing "userdirs_abs_path" argument to constructor- you must specify userdirs_abs_path, absolute path to USERDIRS file');
+	$self->{userdirs_abs_path} 
+      or croak('missing "userdirs_abs_path" argument to constructor.');
 	
 	bless $self, $class;
 
-	$self->{base_path} = $self->{userdirs_abs_path};
-	$self->{base_path}=~s/\/[^\/]+txt$//i or die($!." cant etablish basepath");
+   my $b = $self->base_path;
+   debug("base_path() $b");
 		
 	return $self;
 }
 
+sub base_path {
+   my $self = shift;
+   my $arg = shift;
+   $self->{base_path} = $arg if defined $arg;
+
+   unless( defined $self->{base_path} ){
+   
+      $self->{base_path} = $self->{userdirs_abs_path};
+	   $self->{base_path}=~s/\/[^\/]+txt$//i 
+         or die($!." cant etablish basepath for $self->{base_path}");
+   }
+   $self->{base_path};
+}
+
+
+sub to_abs_unixpath     { _to_abs_unixpath( $_[0]->base_path, $_[1] ) }
+sub to_rel_unixpath     { _to_rel_unixpath( $_[0]->base_path, $_[1] ) }
+sub to_rel_windowspath  { _to_rel_windowspath( $_[0]->base_path, $_[1] ) }
+   
+
+# helper subs - NOT YET IMPLEMENTED
+
+
+sub _to_rel_windowspath {
+   my ($basepath, $arg )= @_;
+   $arg or die('missing arg');
+
+   # could be username, windows path. unix path, rel path, whatever
+   # we need to resolve to windows path to match into the entries
+
+   _is_windowspath($arg) 
+      and return $arg;
+
+   my $rel = _to_rel_unixpath($basepath,$arg) 
+      or warn("cant resolve $arg to rel unixpath") 
+      and return;
+
+	$rel=~s/\//\\/g;
+   $rel;
+}
+
+sub _is_windowspath {
+   my $arg = shift;
+   $arg or confess("missing arg");
+   $arg=~/\\/ or return 0;
+   $arg=~/\// and return 0;
+   1;
+}
+
+sub _is_unixpath {
+   my($arg) = @_;
+   $arg or confess('missing arg');
+
+   $arg=~/\\/ and return 0;
+
+   $arg=~/^\// and return 1;
+}
+
+sub _to_abs_unixpath {
+   my($basepath,$arg) = @_;
+   $arg or confess('missing arg');
+
+   $arg=~s/\\/\//g;
+
+   if( -d "$basepath/$arg" ){
+      debug("exists when we add basepath '$arg'");
+      return Cwd::abs_path("$basepath/$arg");
+   }
+   my $a = Cwd::abs_path($arg) or return;
+   -d $a and return $a;
+   debug("'$a' is not dir");
+
+   return;
+}
+
+sub _to_rel_unixpath {
+   my ($basepath,$arg) = @_;
+   $arg or die('missing arg');
+
+   _is_unixpath($arg) or
+      $arg = _to_abs_unixpath($basepath, $arg)
+         or return;
+   $arg=~s/^$basepath\/// or warn("Cant match $basepath into $arg") and return;
+
+   $arg;
+}
+
+# end helpersubs - NOT YET IMPLEMENTED
 
 
 
 
-
+# METHODS
 sub user_delete {
 	my ($self, $windowspath) = (shift, shift);
 	$windowspath or croak("missing path argument for entry to remove in user_delete_by_path()");
 	$windowspath=~s/\//\\/g;
 
+   my $basepath = $self->base_path;
+   $basepath=~s/\//\\/g;
+   $windowspath=~s/^\Q$basepath\E\\//; # just in case
+
 	my $unixpath = $windowspath;
 	$unixpath=~s/\\/\//g;	
+
+   debug("deleting user windowspath '$windowspath'");
 
 	exists $self->_data->{$windowspath} or return;		
 	delete $self->_data->{$windowspath};  
@@ -45,17 +166,49 @@ sub user_delete {
 
 sub get_user { 
 	my ($self,$windowspath) = (shift,shift);
+   $windowspath or confess('missing arg');
 	$windowspath=~s/\//\\/g;	
-	return $self->_data->{$windowspath};
+   exists $self->_data->{$windowspath} or return;
+   
+      
+	my $h = $self->_data->{$windowspath};
+   
+   $h->{abs_unixpath} ||= $self->to_abs_unixpath($h->{path});
+   $h->{rel_unixpath} ||= $self->to_rel_unixpath($h->{path});
+
+   $h;
 }
 
 
 sub user_add {
 	my ($self, $argv) = (shift, shift);
 
-	$argv->{ label } || croak('provide label for this new entry - user_add()');
-	$argv->{ path } || croak('provide path to this entry - user_add()'); # this is coming in windows\like
-	$argv->{ host } ||= $self->{default_host};
+	$argv->{label} or  confess('provide label for this new entry - user_add()');
+	$argv->{path}  or  confess('provide path to this entry - user_add()'); # this is coming in windows\like
+	$argv->{host}  ||= $self->{default_host};
+
+   debug("user_add() label:$argv->{label} path:$argv->{path} host: $argv->{host}");
+
+
+
+   # PATH ARG IS FULL PATH?
+   if ($argv->{path}=~/^\//){
+      debug("user_add() provided full path as argument '$argv->{path}'");
+
+      my $abs = Cwd::abs_path($argv->{path})
+         or warn("path $argv->{path} is not on disk")
+         and return 0;
+         
+      my $base = Cwd::abs_path($self->base_path)
+         or warn("base $argv->{base} is not on disk")
+         and return 0;
+    
+      $abs=~s/^$base\/// 
+         or warn("can't resolve [$abs] to within [$base]?") 
+         and return 0;
+      $argv->{path} = $abs;
+      debug("resolved to '$abs'");
+   }
 
 	my $unixpath = $argv->{path};
 	my $windowspath = $argv->{path};
@@ -66,15 +219,28 @@ sub user_add {
 		# path\is\here 
 		# either way we get the unix/path and the windows\path
 
+   debug("unixpath    $unixpath");
+   debug("windowspath $windowspath");
 
-	if( exists $self->_data->{$windowspath}){ print STDERR "path $windowspath is already in USERDIRS.TXT" and  return 0; } 	
+
+	if( exists $self->_data->{$windowspath}){ 
+      warn("path '$windowspath' is already present.");
+      return 0;
+   } 	
 	### user exists
 
 
 
-	unless( -d "$$self{base_path}/$unixpath"){
-		File::Path::mkpath("$$self{base_path}/$unixpath") or die($!." cannot create $$self{base_path}/$unixpath for user_add() ");
-		print STDERR "note $$self{base_path}/$unixpath did not exist and was created";	
+   $self->exists_label($argv->{label})
+      and warn("Cannot add label:$argv->{label} path:$argv->{path} host: $argv->{host}, label is being used.")
+      and return 0;
+
+
+   my $b = $self->base_path;
+	unless( -d "$b/$unixpath"){
+		File::Path::mkpath("$b/$unixpath") 
+         or die($!." cannot create $b/$unixpath for user_add() ");
+		debug("note $b/$unixpath did not exist and was created.");	
 	}
 
 	$self->_data->{$windowspath} = {
@@ -86,47 +252,74 @@ sub user_add {
 	return 1;
 }
 
+sub create {
+	my $self = shift;      
+   ! $self->exists 
+      or warn("Cannot create, already on disk: ".$self->userdirs_abs_path)
+      and return 0;
+   $self->save;
+}
+
+sub exists_label {
+   my ($self,$arg)= @_;
+   defined $arg or croak("missing arg");
+   
+   for my $h ( @{$self->get_users} ){
+      return 1 if ( $h->{label} eq $arg );
+   }
+   0;  
+}
+
+*exists_path = \&get_user;
+
+
+# HELPERS
+sub _arg_is_path { $_[0]=~/\/|\\/ }
+sub _arg_is_label { $_[0]!~/\/|\\/ }
+
+
 
 sub save {
 	my $self = shift;
 	# must re sort by label on save only, entry could have been made that needs new sorting
 
-
 	#reset id, count
 	$self->{id} =0;
 
-
-
 	#start output, get the header
-	my $savefile = $self->_get_header; # start with that
+	my $savefile = $self->_get_header or die('no header?'); # start with that
 
 	# has to turn them into line numbers etc 	
 	for (@{$self->get_users}){
 		$savefile.= $self->_hash_to_line($_)."\n";
 	}
-	
-	open (SVF, "> ".$self->userdirs_abs_path.".tmp") or die("$!, cannot open file for writing: ".$self->userdirs_abs_path);
+
+	my $l = length($savefile) or die("savefile has nothing?");
+
+   my $temp = $self->userdirs_abs_path.".tmp";
+   my $abs  = $self->userdirs_abs_path;
+
+
+   debug("opening $temp for writing $l chars");
+
+	open(SVF, '>', $temp)
+      or confess("$!, cannot open file for writing: $temp");
 	print SVF $savefile."\n";
 	close SVF;	
+   
+   debug("Saved $temp");
+   
 	
-	rename($self->userdirs_abs_path.'.tmp', $self->userdirs_abs_path) or die("$!, cannot rename"); 
+	rename($temp, $abs) 
+      or die("cannot rename $temp to $abs, $!"); 
+   if ($DEBUG){
+      -f $abs or die("not on disk! $abs");
+      warn("Saved $abs\n");
+   }
 	
 	return 1;
 }
 
-
-sub create {
-	my $self = shift;
-
-	if ( -f $self->userdirs_abs_path ){
-		carp('create() will not proceed, file already exists:'.$self->userdirs_abs_path);
-		return 0;	
-	}
-	return 1 if $self->save;
-	
-	carp('create() could not save new USERDIRS file');
-	return 0;	
-}
 
 
 
@@ -155,32 +348,8 @@ sub count {
 }
 
 
-sub exists {
-	my $self = shift;
-	-f $self->userdirs_abs_path or return 0;
-	return 1;	
-}
-
-
-sub userdirs_abs_path {
-	my $self = shift;
-	$self->{userdirs_abs_path} or croak('argument userdirs_abs_path missing');
-	return $self->{userdirs_abs_path};
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+sub exists { -f $_[0]->userdirs_abs_path ? 1 : 0 }
+sub userdirs_abs_path { $_[0]->{userdirs_abs_path} }
 
 
 
@@ -222,6 +391,7 @@ sub _original_line_to_hash {
 	$hash->{host} = $vals[2];
 	$hash->{id} = $vals[3];
 	$hash->{end} = $vals[4];
+   
 
 	return $hash;
 }
@@ -254,20 +424,23 @@ sub _data {
 	unless( defined $self->{data} ){
 
 		if( !$self->exists ){
-			carp __PACKAGE__." userdirs does not exist ". $self->userdirs_abs_path.'. ';
+			warn("! -f: ".$self->userdirs_abs_path);
 			return {};
 		}
 	
 		# we just want the users from this, not header stuff
-		my @lines = grep { $self->_is_user_line($_); } File::Slurp::read_file($self->userdirs_abs_path); 
+      
+		my @lines = grep { $self->_is_user_line($_) } File::Slurp::read_file($self->userdirs_abs_path); 
 
-		scalar @lines or print STDERR __PACKAGE__." _read() note: ".$self->userdirs_abs_path." seems empty\n";
+		scalar @lines 
+         or warn("note: ".$self->userdirs_abs_path." has no user line entries.");
 
 		my $data = {};	
 
 		map {
 			my $hash = _original_line_to_hash($_);
-			$data->{ $hash->{path} } = $hash;		
+			$data->{ $hash->{path} } = $hash;	
+         
 		} @lines;
 	
 	
@@ -295,197 +468,3 @@ sub _is_user_line {
 
 1;
 
-__END__
-
-=pod
-
-=head1 NAME
-
-Device::ScanShare - manage USERDIRTS.TXT ecopy file to manage scanner device options
-
-=head1 SYNOPSYS
-	
-	use Device::ScanShare;
-
-	my $scanshare = new Device::ScanShare({
-		userdirs_abs_path => '/var/www/Content/USERDIRS.TXT', 
-			# therefore all paths saved are /var/www/Content/$PATH
-		server => '192.168.0.150',	
-		default_host => 'Dyer05',		
-	});
-
-	$scanshare->user_add({
-		label=>'Martin', 
-		path=>'/home/martin/incoming',
-	});
-
-	$scanshare->save;
-
-
-=head1 WHY
-
-We use ecopy and sharescan software in the office. This is so someone can step up to the scanner and scan to a
-predetermined place. They have a little touchscreen.. you punch in where you want to send it to, the name of the file, 
-and voila. 
-What you can select from is controlled via a file called USERDIRS.TXT. In it are entries like 
-
-	The Label=relative\dir\path,The Label,HostName,1,0
-
-You can edit the damn thing in a text editor. If you have a jillion entries (like we have, upwards of 500), 
-then you do not want to micro manage this by either using their crippled interface or via a text editor. Linux
-and perl to the rescue. 
-
-Included is also a utility called sharescan that will let you edit the file via the command line.
-
-=head1 DESCRIPTION
-
-ScanShare is a oo module to work with the USERDIRS.TXT file used by ecopy for use with their ShareScan software.
-This enables you to control what the entries are via perl. 
-You can add and remove entries to the file.
-	
-=head1 PUBLIC METHODS
-
-=head2 new()
-
-constructor, initiates object.
-takes as argument the path to the userdirs file,
-the server ip as per USERDIRS.TXT, and the host for each line (Dyer05)
-
-	my $scanshare = new Device::ScanShare({
-		userdirs_abs_path => '/var/www/Content/USERDIRS.TXT',
-		server => '192.168.0.150',	
-		default_host => 'Dyer05',
-	});
-
-=head2 create()
-
-will create a new USERDIRS.TXT file in the argument provided to the constructor.
-That is, if you want to create a new file:
-
-	my $s = new Device::ScanShare({
-		userdirs_abs_path => cwd().'/t/USERDIRS.txt',
-		server => '192.168.0.150',
-		default_host => 'Dyer05',
-	});
-
-	$s->create;
-
-create() will return true or false, will carp if file already exists or if create is not
-successful.
-
-=head2 exists()
-
-returns boolean, 
-checks if userdirs file exists already or not in the argument provided.
-
-=head2 get_users()
-
-Returns array ref with hashes of data for each userdirs entry- if you have made any additions or removals, this is
-reflected. Results are orderded by label.
-
-This method is also used internally to save.
-
-	my @all = $scanshare->get_users();
-
-=cut	
-
-
-
-=head1 user_add() and user_delete()
-
-Please note user_add() and user_delete() will save changes to the file.
-
-
-=head2 user_add()
-
-insert new userdir into records, takes arguments label, and absolute path.
-returns 0 if it already exists (by path), returns 1 on success.
-
-	my $path = '/path/to/dirx';
-	my $label = 'a new scan destination';
-	
-	$scanshare->user_add({ label=>$label, path=>$path }) 
-		or die("entry already existed for the destination $path");
-
-please note t		
-
-=head2 user_delete()
-
-delete user record, takes absolute path to directory that it saves to as argument
-
-	$scanshare->user_delete('/path/to/target_directory');
-	$scanshare->save(); # optionally save it to commit changes.
-
-returns 1 on success
-returns nothing if entry did not exist	
-
-
-=head2 get_user()
-
-get userdirs line entry data by path, returns hash
-
-	my $userx = $scanshare->get_user('/path/to/target_directory');
-	print $userx->{label} . ' is set up to scan to directory: '. $userx->{path};
-
-=head2 save()
-
-save changes to userdirs file
-
-	$scanshare->save();
-
-=head2 count()
-
-returns how many userdirs there are
-
-	my $count = $scanshare->count();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-=head1 PRIVATE METHODS
-
-=cut
-
-
-
-
-
-
-
-
-
-
-
-
-=head1 NOTES
-
-Example of a valid USERDIRS.TXT file:
-
-	[PreferredServer]
-	Server=192.168.0.130
-	[RoutingID]
-	NextID=4
-	[Users]
-	Great Place=relative\to\userdirs\location,Great Place,Host04,1,0
-	Also a Great Place=relative\also,Also a Great Place,Host04,2,0
-	Documents=misc\documents,Documents,Host04,3,0
-
-Note the increment 1, 2, 3..
-
-=head1 AUTHOR
-
-Leo Charre leocharre at cpan dot org
-
-=cut

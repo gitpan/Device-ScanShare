@@ -1,16 +1,30 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Device-ScanShare
-version:      1.004
-version_from: lib/Device/ScanShare.pm
-installdirs:  site
+--- #YAML:1.0
+name:               Device-ScanShare
+version:            1.012
+abstract:           manage USERDIRTS.TXT ecopy file to manage scanner device options
+author:
+    - Leo Charre leocharre at cpan dot org
+license:            perl
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+build_requires:
+    ExtUtils::MakeMaker:  0
 requires:
-    Carp:                          0
-    File::Path:                    0
-    File::Slurp:                   0
-    Getopt::Std:                   0
-    Smart::Comments:               0
-    YAML:                          0
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.30
+    Carp:             1
+    Cwd:              3
+    File::Path:       2.07
+    File::Slurp:      0
+    Getopt::Std:      1.05
+    LEOCHARRE::CLI:   1.19
+    Smart::Comments:  1
+    Test::Simple:     0
+    YAML:             0.66
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.50
+meta-spec:
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4
