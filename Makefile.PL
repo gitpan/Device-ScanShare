@@ -13,7 +13,6 @@ WriteMakefile(
       'Carp'                              => '1',
       'Cwd'                               => '3',
       'File::Path'                        => '2.07',
-      'File::Slurp'                       => '0',
       'Getopt::Std'                       => '1.05',
       'LEOCHARRE::CLI'                    => '1.19',
       'Smart::Comments'                   => '1',

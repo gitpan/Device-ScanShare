@@ -39,7 +39,6 @@ DEPENDENCIES
    Cwd
    DMS
    File::Path
-   File::Slurp
    Getopt::Std
    LEOCHARRE::CLI
    Smart::Comments

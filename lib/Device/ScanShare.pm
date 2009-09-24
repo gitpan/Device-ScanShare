@@ -1,29 +1,11 @@
 package Device::ScanShare;
-use File::Slurp;
 use vars qw($VERSION $DEBUG);
 use File::Path;
 use Cwd;
 use strict;
 use Carp;
-
-$VERSION = sprintf "%d.%03d", q$Revision: 1.12 $ =~ /(\d+)/g;
+$VERSION = sprintf "%d.%03d", q$Revision: 1.13 $ =~ /(\d+)/g;
 $DEBUG = 0;
-
-=pod
-# the coolest errstr
-sub errstr { 
-   my($self,$arg) =@_;
-   if( defined $arg ){
-      push @{$self->{errstr}},$arg;
-      my $from = sprintf "[%s %s]", (caller(1))[1], (caller(1))[2];
-      #print STDERR "$arg\n" if $DEBUG;
-      #(printf STDERR "DEBUG %s %s\n", $from, $arg) if $DEBUG;
-   }
-   $self->{errstr} or return;
-
-   join("\n", @{$self->{errstr}});
-}
-=cut
 
 
 sub DEBUG : lvalue { $DEBUG }
@@ -424,13 +406,13 @@ sub _data {
 	unless( defined $self->{data} ){
 
 		if( !$self->exists ){
-			warn("! -f: ".$self->userdirs_abs_path);
+			warn("Not on disk yet: ".$self->userdirs_abs_path);
 			return {};
 		}
 	
 		# we just want the users from this, not header stuff
       
-		my @lines = grep { $self->_is_user_line($_) } File::Slurp::read_file($self->userdirs_abs_path); 
+		my @lines = grep { $self->_is_user_line($_) } array_slurp($self->userdirs_abs_path); 
 
 		scalar @lines 
          or warn("note: ".$self->userdirs_abs_path." has no user line entries.");
@@ -463,6 +445,15 @@ sub _is_user_line {
 	return 1;	
 }
 
+sub array_slurp {
+   my $abs = shift;
+   $abs or confess("Missing argument");
+   #local $/;
+   open(FILE,'<',$abs) or warn("Cannot open file for reading: '$abs', $!") and return;
+   my @lines = <FILE>;
+   close FILE;
+   return @lines;
+}
 
 
 

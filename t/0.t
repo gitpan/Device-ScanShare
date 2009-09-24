@@ -8,7 +8,11 @@ my $cwd = cwd();
 my $abs_userdirs = "$cwd/t/USERDIRS.TXT";
 unlink $abs_userdirs;
 
-$Device::ScanShare::DEBUG = 1 if $ARGV[0] eq '-d';
+no warnings;
+$ARGV[0] ||= 0;
+
+
+$Device::ScanShare::DEBUG = 1 if ($ARGV[0] eq '-d');
 
 my $s = new Device::ScanShare({
 	userdirs_abs_path => $abs_userdirs,
