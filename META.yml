@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Device-ScanShare
-version:            1.013
+version:            1.014
 abstract:           manage USERDIRTS.TXT ecopy file to manage scanner device options
 author:
     - Leo Charre leocharre at cpan dot org

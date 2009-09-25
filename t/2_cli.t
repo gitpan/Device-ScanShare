@@ -6,6 +6,10 @@ use vars qw($_part $cwd);
 $cwd = cwd();
 
 
+my $haveyaml = eval { require YAML };
+
+if ($haveyaml){ ok 1, 'have YAML, continuing to test cli' }
+else { ok( 1, 'do not have YAML, skipping..'); exit; }
 
 
 

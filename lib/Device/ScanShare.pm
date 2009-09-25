@@ -4,7 +4,7 @@ use File::Path;
 use Cwd;
 use strict;
 use Carp;
-$VERSION = sprintf "%d.%03d", q$Revision: 1.13 $ =~ /(\d+)/g;
+$VERSION = sprintf "%d.%03d", q$Revision: 1.14 $ =~ /(\d+)/g;
 $DEBUG = 0;
 
 
@@ -444,6 +444,7 @@ sub _is_user_line {
 	$line=~/^[^\[\]\/\\=]+=/ or return 0;
 	return 1;	
 }
+
 
 sub array_slurp {
    my $abs = shift;

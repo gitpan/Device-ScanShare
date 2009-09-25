@@ -1,3 +1,8 @@
+2009-09-25 09:27  cvs
+
+	* README, t/2_cli.t: Had to make slight debug on cli test to check
+	  for dep beforehand.
+
 2009-09-24 16:20  cvs
 
 	* Makefile.PL, README, lib/Device/ScanShare.pm, t/0.t: Took out use
